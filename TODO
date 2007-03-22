@@ -1,0 +1,9 @@
+Features planned for next release:
+
+[] Re-organize filesystem when metadata changes
+[] Tagging/Untagging files + managing tags using file-system operations
+	e.g. mv file1 tag1/ tags file1 with tag1
+	     mv tag1 tag2 renames tag1 to tag2 
+	     rmdir tag1 removes tag tag1 from all tagged files
+[] Smart Folders for Saved Tag queries 
+	e.g. tag1 and not tag2 or tag3
