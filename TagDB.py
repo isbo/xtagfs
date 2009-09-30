@@ -3,7 +3,7 @@
 #   This program is distributed under the terms of the GNU GPL
 #   See the file COPYING.
 
-from pysqlite2 import dbapi2 as sqlite
+import sqlite3
 from sets import Set
 import os
 import logging
@@ -15,18 +15,19 @@ class TagDB:
     def __init__(self, dbPath = ':memory:'):
         # XXX: file-based DB
         try:
-            self.con = sqlite.connect(dbPath, check_same_thread = False)
-        except sqlite.Error, e:
+            con = sqlite3.connect(dbPath, check_same_thread = False)
+            self.cursor = con.cursor()
+        except sqlite3.Error, e:
             logging.critical("Error opening TagDB: %s" % e)
         # create DB tables
         # Tags: id <-> name
-        self.con.execute("create table Tags(tagId integer not null primary key \
+        self.cursor.execute("create table Tags(tagId integer not null primary key \
                 autoincrement, tagName text not null unique)")
         # Items: id <-> name
-        self.con.execute("create table Items(itemId integer not null primary \
+        self.cursor.execute("create table Items(itemId integer not null primary \
                 key autoincrement, itemName text not null unique)")
         # Map: itemId <-> tagId
-        self.con.execute("create table TagItemMap(itemId integer not null, \
+        self.cursor.execute("create table TagItemMap(itemId integer not null, \
                 tagId integer not null, primary key (itemId, tagId))")
 
     def addItems(self, items):
@@ -34,18 +35,18 @@ class TagDB:
         # add to Items table
         for item, tags in items.iteritems():
             try:
-                self.con.execute("insert into Items(itemId, itemName) \
+                self.cursor.execute("insert into Items(itemId, itemName) \
                         values (?, ?)", (None, item))
-            except sqlite.Error, e:
+            except sqlite3.Error, e:
                 logging.error("Error Item table insert: %s" % e)
             allTags = allTags.union(tags)
 
         # add to Tags table
         for tag in allTags:
             try:                
-                self.con.execute("insert into Tags(tagId, tagName) \
+                self.cursor.execute("insert into Tags(tagId, tagName) \
                         values (?, ?)", (None, tag))
-            except sqlite.Error, e:
+            except sqlite3.Error, e:
                 logging.error("Error Tag table insert: %s" % e)
 
         # add to mapping table
@@ -53,10 +54,10 @@ class TagDB:
             for tag in tags:
                 # XXX: re-write query?
                 try:
-                    self.con.execute("insert into TagItemMap(itemId, tagId) \
+                    self.cursor.execute("insert into TagItemMap(itemId, tagId) \
                             select itemId, tagId from items, tags where \
                             itemName = '%s' and tagName = '%s'" % (item, tag))
-                except sqlite.Error, e:
+                except sqlite3.Error, e:
                     logging.error("Error Map table insert: %s" % e)
 
     def getAssociatedTags(self, tags = None, itemTable = 'Items'):
@@ -69,8 +70,8 @@ class TagDB:
                 INNER JOIN Tags t ON ti.tagId = t.tagId %s \
                 GROUP BY t.tagName ORDER BY count DESC" % (itemTable, sqlWhere)
         try:
-            cur = self.con.execute(sql)
-        except sqlite.Error, e:
+            cur = self.cursor.execute(sql)
+        except sqlite3.Error, e:
             logging.error("Error finding associated tags: %s" % e)
             return None
         resTags = []
@@ -109,8 +110,8 @@ class TagDB:
                 %  (numTags - 1)
         sql = sqlCreate + sqlSelect + sqlFrom + sqlJoins + sqlWhere
         try:
-            self.con.execute(sql)
-        except sqlite.Error, e:
+            self.cursor.execute(sql)
+        except sqlite3.Error, e:
             logging.error("Error finding Items with all tags: %s" % e)
             return False
         return True
@@ -127,8 +128,8 @@ class TagDB:
                 INNER JOIN Tags t ON ti.tagId = t.tagId WHERE \
                 t.tagName NOT IN %s" % (itemTable, itemTable, repr(tuple(tags)))
         try:
-            cur = self.con.execute(sql)
-        except sqlite.Error, e:
+            cur = self.cursor.execute(sql)
+        except sqlite3.Error, e:
             logging.error("Error finding Items with exact tags: %s" % e)
             return None
         items = []
@@ -154,15 +155,15 @@ class TagDB:
         # XXX: cache this table
         if tags:
             try:
-                self.con.execute("DROP TABLE %s" % itemTable)
-            except sqlite.Error, e:
+                self.cursor.execute("DROP TABLE %s" % itemTable)
+            except sqlite3.Error, e:
                 logging.error("Error dropping result item table: %s" % e)
 
         return resTags, resItems
 
     # for debugging...
     def printAllItems(self):
-        cur = self.con.execute("select i.itemId, i.itemName, t.tagId, \
+        cur = self.cursor.execute("select i.itemId, i.itemName, t.tagId, \
                 t.tagName from TagItemMap ti, Tags t, Items i \
                 where i.itemId=ti.itemId and t.tagId=ti.tagId")
         for r in cur:

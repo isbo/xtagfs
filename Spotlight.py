@@ -10,44 +10,38 @@ import re
 from sets import Set
 
 class SpotlightQuery:
-    def __init__(self, root = None, tagFmt = None):
-        self.tagFmt = tagFmt
-        self.root = root
+    def __init__(self, rootDir=None, tagDelimiter=None):
+        self.tagDelimiter = tagDelimiter
+        self.rootDir = rootDir
         self.fcRegex = re.compile("kMDItemFinderComment\ \=\ \"(.*?)\"")
 
-    def execute(self, queryTags = None):
+    def execute(self):
         entries = {}
 
         # build the query string 
-        fileQueryStr = "mdfind "
-        if queryTags:
-            for tag in queryTags:
-                fileQueryStr += "and kMDItemFinderComment=='*" + tag + "*'" 
-        else:                
-            fileQueryStr += "kMDItemFinderComment!='(- )'"
-        #print fileQueryStr
+        fileQueryStr = "mdfind \"kMDItemFinderComment == '*'\""
+        if self.rootDir: 
+            fileQueryStr += "  -onlyin " + self.rootDir
 
-        # get ALL files with tags
         tagQueryStr = "mdls -name 'kMDItemFinderComment' '"
-        for item in os.popen(fileQueryStr).xreadlines():
-            item = item.strip()
+        # get all files with tags
+        for filename in os.popen(fileQueryStr).xreadlines():
+            file = filename.strip()
             # get all tags for each file
-            result = os.popen(tagQueryStr + item + "'").read()
-            comments = self.fcRegex.search(result).group(1)
-            if not comments:
+            result = os.popen(tagQueryStr + file + "'").read()
+            match = self.fcRegex.search(result)
+            if not match:
                 continue
-            tags = Set(comments.split(" "))
-            entries[item] = tags
+            comments = match.group(1) 
+            if not comments.strip():
+                continue
+            tags = Set(comments.split(self.tagDelimiter))
+            entries[file] = tags
 
         return entries
 
 if __name__ == '__main__':
     from sys import argv
-
-    if argv[1:]:
-        tag = argv[1]
-    else:
-        tag = None
 
     query = SpotlightQuery()
     entries = query.execute()
